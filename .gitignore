@@ -1,0 +1,6 @@
+# Archivos del sistema
+.DS_Store
+
+# Archivos csv
+*.csv
+*.numbers
