@@ -1,8 +1,6 @@
 # Portfolio Rebalancing Optimizer (Quantitative)
 
-This project implements a **mean–variance portfolio rebalancing optimizer** that incorporates **target-price-based expected returns**, **covariance-based risk estimation**, and **constrained optimization** to allocate new capital and evaluate portfolio efficiency.
-
-The model is designed for **quantitative portfolio analysis**, combining forward-looking return assumptions with historical risk estimates.
+This project implements a **mean–variance portfolio rebalancing optimizer** that combines **forward-looking expected returns**, **covariance-based risk estimation**, and **constrained optimization**. The design follows standard quantitative finance principles while making each calculation economically interpretable.
 
 ---
 
@@ -20,7 +18,7 @@ The optimizer expects a CSV file named `portfolio.csv`:
 
 | Column  | Description                   |
 | ------- | ----------------------------- |
-| Ticker  | Yahoo Finance ticker          |
+| Ticker  | Yahoo Finance ticker symbol   |
 | Target  | Estimated fair / target price |
 | Holding | Current dollar allocation     |
 
@@ -28,86 +26,134 @@ The optimizer expects a CSV file named `portfolio.csv`:
 
 ## Expected Return Model
 
-For each asset *i*, expected return ( \mu_i ) is defined as:
+Expected returns are **forward-looking** and derived from valuation assumptions rather than historical averages.
 
-### Undervalued assets
+### Undervalued Assets
 
 [
 \mu_i = \frac{P_i^{\text{target}} - P_i}{P_i}
 ]
 
-### Overvalued assets (mean reversion)
+**What this does:**
+This computes the percentage upside between the current market price and the estimated fair value. The model assumes the market will eventually close this valuation gap.
 
-If ( P_i > P_i^{\text{target}} ), expected return is modeled as:
+**Interpretation:**
+If the stock converges to its target price, this is the implied return.
+
+---
+
+### Overvalued Assets (Mean Reversion)
+
 [
 \mu_i = g + d + \left( \frac{P_i^{\text{target}}}{P_i} \right)^{1/T} - 1
 ]
 
-Where:
+**What this does:**
+When a stock trades above fair value, expected return is modeled via **gradual mean reversion** rather than simple negative upside.
 
-* ( g ) = long-term growth rate
-* ( d ) = dividend yield
-* ( T ) = years to price reversion
+* The reversion term annualizes the valuation correction over (T) years
+* Growth (g) and dividends (d) partially offset valuation drag
+
+**Interpretation:**
+Even overpriced assets may deliver returns as fundamentals catch up over time.
 
 ---
 
 ## Risk Model
 
-* Daily log returns are computed:
-  [
-  r_{i,t} = \ln\left(\frac{P_{i,t}}{P_{i,t-1}}\right)
-  ]
+Risk is estimated from historical price behavior and asset co-movement.
 
-* The annualized covariance matrix is estimated as:
-  [
-  \Sigma = 252 \cdot \text{Cov}(r)
-  ]
+### Log Returns
 
-* Portfolio volatility:
-  [
-  \sigma_p = \sqrt{\mathbf{w}^T \Sigma \mathbf{w}}
-  ]
+[
+r_{i,t} = \ln\left(\frac{P_{i,t}}{P_{i,t-1}}\right)
+]
+
+**What this does:**
+Log returns are time-additive and statistically well-behaved, making them suitable for covariance estimation.
+
+---
+
+### Covariance Matrix
+
+[
+\Sigma = 252 \cdot \text{Cov}(r)
+]
+
+**What this does:**
+The covariance matrix captures how assets move relative to one another. Annualization assumes 252 trading days.
+
+**Interpretation:**
+Diversification benefits arise when assets exhibit low or negative covariance.
+
+---
+
+### Portfolio Volatility
+
+[
+\sigma_p = \sqrt{\mathbf{w}^T \Sigma \mathbf{w}}
+]
+
+**What this does:**
+Aggregates individual asset risk and correlations into a single portfolio-level risk metric.
 
 ---
 
 ## Optimization Problem
 
-The optimizer solves:
+The optimizer balances expected return against total portfolio risk.
 
 [
 \min_{\mathbf{w}} ; \lambda , \sigma_p - \mathbf{w}^T \boldsymbol{\mu}
 ]
 
-Subject to:
+**What this does:**
+
+* Rewards higher expected return
+* Penalizes volatility
+* (\lambda) controls the aggressiveness of the portfolio
+
+---
+
+### Constraints
+
 [
 \sum_i w_i = 1
 ]
+
+**Interpretation:**
+The portfolio is fully invested with no leverage or idle cash.
+
 [
 0 \le w_i \le w_{\max}
 ]
 
-Where:
-
-* ( \lambda ) = risk aversion parameter
-* ( w_{\max} ) = maximum asset weight (default 30%)
-
-Optimization is performed using **SLSQP**.
+**Interpretation:**
+Long-only and position limits reduce concentration and estimation risk.
 
 ---
 
 ## Portfolio Metrics
 
-Expected portfolio return:
+### Expected Portfolio Return
+
 [
 E[R_p] = \mathbf{w}^T \boldsymbol{\mu}
 ]
 
-Sharpe ratio:
+**What this does:**
+Computes the weighted average of asset-level expected returns.
+
+---
+
+### Sharpe Ratio
+
 [
 S = \frac{E[R_p] - r_f}{\sigma_p}
 ]
 
-Where ( r_f ) is the risk-free rate.
+**What this does:**
+Measures risk-adjusted performance by comparing excess return to total volatility.
 
 ---
 
@@ -117,7 +163,7 @@ The optimizer returns:
 
 * Asset-level optimized weights
 * New cash allocation per asset
-* Final post-rebalance weights
+* Final post-rebalance portfolio weights
 * Pre- and post-rebalance return, volatility, and Sharpe ratio
 
 Results are exported to:
@@ -130,7 +176,7 @@ df_rebalance.csv
 
 ## Notes
 
-* Expected returns are **forward-looking** and target-driven
+* Expected returns are **valuation-driven**, not historical averages
 * No short selling or transaction costs
 * Single-period optimization
 
